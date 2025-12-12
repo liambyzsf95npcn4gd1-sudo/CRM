@@ -60,10 +60,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 // Обработка добавления комментария
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['comment_text'])) {
     $text = trim($_POST['comment_text']);
-    if (!empty($text)) {
+
+    // Загрузка файла для комментария
+    $file_path = null;
+    $uploadDir = __DIR__ . '/uploads/';
+    if (!is_dir($uploadDir)) {
+        mkdir($uploadDir, 0755, true);
+    }
+
+    if (isset($_FILES['comment_file']) && $_FILES['comment_file']['error'] === UPLOAD_ERR_OK) {
+        $fileInfo = pathinfo($_FILES['comment_file']['name']);
+        $ext = strtolower($fileInfo['extension']);
+        $allowed = ['jpg', 'jpeg', 'png', 'gif', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt', 'zip', 'rar'];
+
+        if (in_array($ext, $allowed)) {
+            $filename = uniqid('comment_') . '.' . $ext;
+            $target = $uploadDir . $filename;
+            if (move_uploaded_file($_FILES['comment_file']['tmp_name'], $target)) {
+                $file_path = 'uploads/' . $filename;
+            }
+        }
+    }
+
+    if (!empty($text) || $file_path) {
         $now = date('Y-m-d H:i:s');
-        $stmt = $pdo->prepare("INSERT INTO comments (task_id, user_id, text, created_at) VALUES (?, ?, ?, ?)");
-        $stmt->execute([$task_id, $user_id, $text, $now]);
+        $stmt = $pdo->prepare("INSERT INTO comments (task_id, user_id, text, file_path, created_at) VALUES (?, ?, ?, ?, ?)");
+        $stmt->execute([$task_id, $user_id, $text, $file_path, $now]);
         header("Location: task_view.php?id=$task_id");
         exit;
     }
@@ -231,6 +253,11 @@ $comments = $stmt->fetchAll();
                                 | <?= date('d.m.Y H:i', strtotime($c['created_at'])) ?>
                             </div>
                             <div style="margin-top: 5px;"><?= nl2br(htmlspecialchars($c['text'])) ?></div>
+                            <?php if (!empty($c['file_path'])): ?>
+                                <div style="margin-top: 5px;">
+                                    <a href="<?= htmlspecialchars($c['file_path']) ?>" target="_blank" style="color: #007bff; font-size: 12px;">Скачать прикрепленный файл</a>
+                                </div>
+                            <?php endif; ?>
                         </div>
                     <?php endforeach; ?>
                 <?php else: ?>
@@ -238,10 +265,17 @@ $comments = $stmt->fetchAll();
                 <?php endif; ?>
             </div>
 
-            <form method="POST">
+            <form method="POST" enctype="multipart/form-data">
                 <label>Добавить комментарий</label>
-                <textarea name="comment_text" rows="3" required></textarea>
-                <button type="submit" class="btn btn-primary" style="margin-top: 10px;">Отправить</button>
+                <textarea name="comment_text" rows="3"></textarea>
+
+                <label style="margin-top: 10px;">Прикрепить файл</label>
+                <input type="file" name="comment_file">
+                <small style="color: #666;">Разрешены: jpg, png, pdf, doc, xls, zip</small>
+
+                <div style="margin-top: 10px;">
+                    <button type="submit" class="btn btn-primary">Отправить</button>
+                </div>
             </form>
 
         </div>

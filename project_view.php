@@ -25,10 +25,20 @@ $sql = "
     FROM tasks t
     LEFT JOIN users u ON t.assignee_id = u.id
     WHERE t.project_id = ?
-    ORDER BY t.priority = 'high' DESC, t.priority = 'medium' DESC, t.deadline ASC
 ";
+
+$params = [$project_id];
+
+// Если пользователь - сотрудник, показываем только его задачи
+if (current_user_role() === 'employee') {
+    $sql .= " AND t.assignee_id = ?";
+    $params[] = current_user_id();
+}
+
+$sql .= " ORDER BY t.priority = 'high' DESC, t.priority = 'medium' DESC, t.deadline ASC";
+
 $stmt = $pdo->prepare($sql);
-$stmt->execute([$project_id]);
+$stmt->execute($params);
 $tasks = $stmt->fetchAll();
 
 ?>
@@ -56,6 +66,7 @@ $tasks = $stmt->fetchAll();
             <h1>Проект: <?= htmlspecialchars($project['name']) ?></h1>
             <?php if (current_user_role() === 'admin'): ?>
                 <div>
+                    <a href="project_edit.php?id=<?= $project['id'] ?>" class="btn btn-primary" style="margin-right: 10px;">Редактировать название</a>
                     <a href="project_clone_confirm.php?id=<?= $project['id'] ?>" class="btn btn-warning">Клонировать проект</a>
                 </div>
             <?php endif; ?>

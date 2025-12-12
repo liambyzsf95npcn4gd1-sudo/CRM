@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS comments (
     task_id INT NOT NULL,
     user_id INT NOT NULL,
     text TEXT NOT NULL,
+    file_path VARCHAR(255) DEFAULT NULL,
     created_at DATETIME NOT NULL,
     FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE

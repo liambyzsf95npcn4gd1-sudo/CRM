@@ -15,6 +15,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $first_name = trim($_POST['first_name']);
     $last_name = trim($_POST['last_name']);
     $role = $_POST['role'];
+    $email = trim($_POST['email']);
+    $position = trim($_POST['position']);
+    $phone = trim($_POST['phone']);
 
     // Проверка на заполнение обязательных полей
     if (empty($login) || empty($password) || empty($first_name) || empty($last_name)) {
@@ -23,8 +26,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         try {
             // Хеширование пароля перед сохранением
             $passHash = password_hash($password, PASSWORD_DEFAULT);
-            $stmt = $pdo->prepare("INSERT INTO users (login, password, first_name, last_name, role) VALUES (?, ?, ?, ?, ?)");
-            $stmt->execute([$login, $passHash, $first_name, $last_name, $role]);
+            $stmt = $pdo->prepare("INSERT INTO users (login, password, first_name, last_name, role, email, position, phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$login, $passHash, $first_name, $last_name, $role, $email, $position, $phone]);
             $success = "Пользователь успешно создан.";
         } catch (PDOException $e) {
             // Обработка ошибки дубликата логина
@@ -92,6 +95,15 @@ $users = $stmt->fetchAll();
                     <option value="admin">Администратор</option>
                 </select>
 
+                <label>Email</label>
+                <input type="text" name="email">
+
+                <label>Должность</label>
+                <input type="text" name="position">
+
+                <label>Телефон</label>
+                <input type="text" name="phone">
+
                 <button type="submit" class="btn btn-success">Создать</button>
             </form>
         </div>
@@ -104,6 +116,7 @@ $users = $stmt->fetchAll();
                     <th>Логин</th>
                     <th>ФИО</th>
                     <th>Роль</th>
+                    <th>Действия</th>
                 </tr>
             </thead>
             <tbody>
@@ -118,6 +131,9 @@ $users = $stmt->fetchAll();
                             <?php else: ?>
                                 <span style="color: green;">Сотрудник</span>
                             <?php endif; ?>
+                        </td>
+                        <td>
+                            <a href="user_view.php?id=<?= $u['id'] ?>" class="btn btn-primary" style="padding: 5px 10px; font-size: 12px;">Просмотр</a>
                         </td>
                     </tr>
                 <?php endforeach; ?>
