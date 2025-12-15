@@ -8,6 +8,14 @@ require_admin();
 $error = '';
 $success = '';
 
+// Получение действия удаления
+if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
+    $delete_id = $_GET['delete'];
+    // Logic moved to user_delete.php, but redirecting for simplicity or we can inline confirm link in HTML
+    header("Location: user_delete.php?id=$delete_id");
+    exit;
+}
+
 // Обработка создания нового пользователя
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'create') {
     $login = trim($_POST['login']);
@@ -51,6 +59,7 @@ $users = $stmt->fetchAll();
     <meta charset="UTF-8">
     <title>Управление пользователями</title>
     <link rel="stylesheet" href="style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body>
     <div class="container">
@@ -70,6 +79,10 @@ $users = $stmt->fetchAll();
         <?php endif; ?>
         <?php if ($success): ?>
             <div class="alert" style="background-color: #d4edda; color: #155724;"><?= htmlspecialchars($success) ?></div>
+        <?php endif; ?>
+
+        <?php if (isset($_GET['msg']) && $_GET['msg'] === 'deleted'): ?>
+            <div class="alert" style="background-color: #d4edda; color: #155724;">Сотрудник удален.</div>
         <?php endif; ?>
 
         <div style="background: #f9f9f9; padding: 20px; border: 1px solid #ddd; margin-bottom: 30px;">
@@ -109,36 +122,42 @@ $users = $stmt->fetchAll();
         </div>
 
         <h3>Список пользователей</h3>
-        <table>
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Логин</th>
-                    <th>ФИО</th>
-                    <th>Роль</th>
-                    <th>Действия</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php foreach ($users as $u): ?>
+        <div class="table-responsive">
+            <table>
+                <thead>
                     <tr>
-                        <td><?= $u['id'] ?></td>
-                        <td><?= htmlspecialchars($u['login']) ?></td>
-                        <td><?= htmlspecialchars($u['first_name'] . ' ' . $u['last_name']) ?></td>
-                        <td>
-                            <?php if ($u['role'] == 'admin'): ?>
-                                <span style="color: red; font-weight: bold;">Админ</span>
-                            <?php else: ?>
-                                <span style="color: green;">Сотрудник</span>
-                            <?php endif; ?>
-                        </td>
-                        <td>
-                            <a href="user_view.php?id=<?= $u['id'] ?>" class="btn btn-primary" style="padding: 5px 10px; font-size: 12px;">Просмотр</a>
-                        </td>
+                        <th>ID</th>
+                        <th>Логин</th>
+                        <th>ФИО</th>
+                        <th>Роль</th>
+                        <th>Действия</th>
                     </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
+                </thead>
+                <tbody>
+                    <?php foreach ($users as $u): ?>
+                        <tr>
+                            <td><?= $u['id'] ?></td>
+                            <td><?= htmlspecialchars($u['login']) ?></td>
+                            <td><?= htmlspecialchars($u['first_name'] . ' ' . $u['last_name']) ?></td>
+                            <td>
+                                <?php if ($u['role'] == 'admin'): ?>
+                                    <span style="color: red; font-weight: bold;">Админ</span>
+                                <?php else: ?>
+                                    <span style="color: green;">Сотрудник</span>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <a href="user_view.php?id=<?= $u['id'] ?>" class="btn btn-primary" style="padding: 5px 10px; font-size: 12px;">Просмотр</a>
+                                <a href="user_edit.php?id=<?= $u['id'] ?>" class="btn btn-warning" style="padding: 5px 10px; font-size: 12px;">Редактировать</a>
+                                <?php if ($u['id'] != current_user_id()): ?>
+                                    <a href="user_delete.php?id=<?= $u['id'] ?>" class="btn btn-danger" style="padding: 5px 10px; font-size: 12px;" onclick="return confirm('Удалить сотрудника?');">Удалить</a>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
     </div>
 </body>
 </html>

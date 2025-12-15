@@ -43,8 +43,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         if ($action === 'done') {
             $new_status = 'done';
         } elseif ($action === 'delete') {
-            header("Location: task_delete.php?id=$task_id");
-            exit;
+            // Кнопка "Удалить" теперь переносит в архив (Soft Delete)
+            $new_status = 'archive';
         }
     }
 
@@ -262,10 +262,13 @@ if (!empty($comment_ids)) {
                         </form>
                     <?php endif; ?>
 
-                    <form method="POST" style="display: inline;">
-                        <input type="hidden" name="action" value="delete">
-                        <button type="submit" class="btn btn-danger" onclick="return confirm('Вы уверены, что хотите удалить задачу?');">Удалить</button>
-                    </form>
+                    <?php if ($task['status'] !== 'archive'): ?>
+                        <form method="POST" style="display: inline;">
+                            <input type="hidden" name="action" value="delete">
+                            <!-- Кнопка называется "Удалить", но по факту отправляет в архив -->
+                            <button type="submit" class="btn btn-danger" onclick="return confirm('Задача будет перемещена в архив. Продолжить?');">Удалить</button>
+                        </form>
+                    <?php endif; ?>
                 <?php endif; ?>
             </div>
 
