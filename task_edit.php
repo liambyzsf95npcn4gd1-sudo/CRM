@@ -34,15 +34,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $deadline = str_replace('T', ' ', $_POST['deadline']) . ':00';
     }
 
-    // Статус может быть изменен через отдельные кнопки в task_view.php, но при редактировании мы меняем основные поля.
-
     if (empty($title) || empty($project_id)) {
         $error = "Название задачи и проект обязательны.";
     } else {
         try {
+            // Update timestamp
+            $now = date('Y-m-d H:i:s');
+
             $stmt = $pdo->prepare("
                 UPDATE tasks
-                SET project_id = ?, assignee_id = ?, title = ?, description = ?, priority = ?, deadline = ?
+                SET project_id = ?, assignee_id = ?, title = ?, description = ?, priority = ?, deadline = ?, updated_at = ?
                 WHERE id = ?
             ");
             $stmt->execute([
@@ -52,8 +53,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $description,
                 $priority,
                 $deadline,
+                $now,
                 $task_id
             ]);
+
+            // Note: File uploads are not in edit form per original MVP logic,
+            // usually you add files via comments or we could add "Add more files" here.
+            // Requirement was "Change logic of attaching files... simultaneously add multiple comments".
+            // Actually, "Загрузка нескольких файлов: Изменить логику прикрепления файлов. Сейчас 1 файл, нужно сделать возможность одновременно добавлять несколько комментариев"
+            // This part of requirement text is slightly confusing: "possibility to simultaneously add multiple comments" -> probably meant "add multiple files".
+            // We addressed multiple files in `task_create` and `task_view` (comments).
+            // `task_edit` usually just edits metadata.
 
             header("Location: task_view.php?id=$task_id");
             exit;
@@ -124,6 +134,7 @@ $users = $pdo->query("SELECT * FROM users WHERE role = 'employee' ORDER BY first
                     <?php foreach ($users as $u): ?>
                         <option value="<?= $u['id'] ?>" <?= $u['id'] == $task['assignee_id'] ? 'selected' : '' ?>>
                             <?= htmlspecialchars($u['first_name'] . ' ' . $u['last_name']) ?>
+                            <?php if(!empty($u['position'])) echo " (" . htmlspecialchars($u['position']) . ")"; ?>
                         </option>
                     <?php endforeach; ?>
                 </select>

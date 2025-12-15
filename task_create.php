@@ -7,14 +7,9 @@ require_admin();
 $error = '';
 $success = '';
 
-// Проверка наличия директории для загрузки файлов
-$uploadDir = __DIR__ . '/uploads/';
-if (!is_dir($uploadDir)) {
-    mkdir($uploadDir, 0755, true);
-}
-
 // Получение списка проектов и сотрудников для выпадающих списков
 $projects = $pdo->query("SELECT * FROM projects ORDER BY id DESC")->fetchAll();
+// Fetch employees with position
 $users = $pdo->query("SELECT * FROM users WHERE role = 'employee' ORDER BY first_name ASC")->fetchAll();
 
 $default_project_id = $_GET['project_id'] ?? '';
@@ -26,44 +21,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $assignee_id = !empty($_POST['assignee_id']) ? $_POST['assignee_id'] : null;
     $priority = $_POST['priority'];
 
-    // Форматирование даты для MySQL (YYYY-MM-DD HH:MM:SS)
-    // datetime-local возвращает YYYY-MM-DDTHH:MM
+    // Форматирование даты
     $deadline = null;
     if (!empty($_POST['deadline'])) {
         $deadline = str_replace('T', ' ', $_POST['deadline']) . ':00';
     }
 
-    // Загрузка файла
-    $file_path = null;
-    if (isset($_FILES['file']) && $_FILES['file']['error'] === UPLOAD_ERR_OK) {
-        $fileInfo = pathinfo($_FILES['file']['name']);
-        $ext = strtolower($fileInfo['extension']);
-
-        // Список разрешенных расширений (Белый список)
-        $allowed = ['jpg', 'jpeg', 'png', 'gif', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt', 'zip', 'rar'];
-
-        if (in_array($ext, $allowed)) {
-            // Генерация уникального имени файла
-            $filename = uniqid('task_') . '.' . $ext;
-            $target = $uploadDir . $filename;
-            if (move_uploaded_file($_FILES['file']['tmp_name'], $target)) {
-                $file_path = 'uploads/' . $filename;
-            } else {
-                $error = "Ошибка загрузки файла.";
-            }
-        } else {
-            $error = "Недопустимый формат файла. Разрешены: " . implode(', ', $allowed);
-        }
-    }
-
     if (empty($title) || empty($project_id)) {
-        $error = (!empty($error) ? $error . " " : "") . "Название задачи и проект обязательны.";
-    } elseif (empty($error)) {
+        $error = "Название задачи и проект обязательны.";
+    } else {
         try {
+            $pdo->beginTransaction();
+
             $created_at = date('Y-m-d H:i:s');
+            // Insert Task
+            // Note: updated_at is added as per plan, initialized to created_at
             $stmt = $pdo->prepare("
                 INSERT INTO tasks
-                (project_id, creator_id, assignee_id, title, description, priority, created_at, deadline, file_path)
+                (project_id, creator_id, assignee_id, title, description, priority, created_at, updated_at, deadline)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
             $stmt->execute([
@@ -74,14 +49,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $description,
                 $priority,
                 $created_at,
-                $deadline,
-                $file_path
+                $created_at,
+                $deadline
             ]);
+
+            $task_id = $pdo->lastInsertId();
+
+            // Handle file uploads (multiple)
+            if (isset($_FILES['files'])) {
+                $uploadedFiles = upload_files($_FILES['files']);
+                if (!empty($uploadedFiles)) {
+                    $stmtAttach = $pdo->prepare("INSERT INTO attachments (entity_type, entity_id, file_path, created_at) VALUES (?, ?, ?, ?)");
+                    foreach ($uploadedFiles as $path) {
+                        $stmtAttach->execute(['task', $task_id, $path, $created_at]);
+                    }
+                }
+            }
+
+            $pdo->commit();
 
             // Перенаправление на страницу проекта
             header("Location: project_view.php?id=$project_id");
             exit;
         } catch (PDOException $e) {
+            $pdo->rollBack();
             $error = "Ошибка БД: " . $e->getMessage();
         }
     }
@@ -143,6 +134,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <?php foreach ($users as $u): ?>
                         <option value="<?= $u['id'] ?>">
                             <?= htmlspecialchars($u['first_name'] . ' ' . $u['last_name']) ?>
+                            <?php if(!empty($u['position'])) echo " (" . htmlspecialchars($u['position']) . ")"; ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
@@ -150,8 +142,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <label>Дедлайн</label>
                 <input type="datetime-local" name="deadline">
 
-                <label>Файл</label>
-                <input type="file" name="file">
+                <label>Файлы</label>
+                <!-- Allow multiple files -->
+                <input type="file" name="files[]" multiple>
                 <small style="color: #666;">Разрешены: jpg, png, pdf, doc, xls, zip</small>
 
                 <div class="mt-20">

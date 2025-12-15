@@ -20,7 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['role'] = $user['role'];
             $_SESSION['name'] = $user['first_name'] . ' ' . $user['last_name'];
 
-            // Перенаправление на список задач
+            // Перенаправление на список задач, как требуется в новой версии
             header('Location: tasks_list.php');
             exit;
         } else {
