@@ -22,6 +22,7 @@ h1, h2, h3 {
 
 /* Формы */
 input[type="text"],
+input[type="email"],
 input[type="password"],
 input[type="date"],
 input[type="datetime-local"],
@@ -33,7 +34,7 @@ textarea {
     margin-bottom: 15px;
     border: 1px solid #ccc;
     border-radius: 4px;
-    box-sizing: border-box; /* Гарантирует, что padding не влияет на ширину */
+    box-sizing: border-box;
 }
 
 label {
@@ -54,22 +55,23 @@ label {
     text-decoration: none;
     font-size: 14px;
     margin-right: 5px;
+    text-align: center;
 }
 
 .btn-primary {
-    background-color: #007bff; /* Синяя */
+    background-color: #007bff;
 }
 
 .btn-success {
-    background-color: #28a745; /* Зеленая */
+    background-color: #28a745;
 }
 
 .btn-danger {
-    background-color: #dc3545; /* Красная */
+    background-color: #dc3545;
 }
 
 .btn-warning {
-    background-color: #ffc107; /* Желтая/Оранжевая */
+    background-color: #ffc107;
     color: #212529;
 }
 
@@ -99,26 +101,13 @@ th {
 }
 
 /* Цвета приоритетов */
-.row-high {
-    background-color: #f8d7da; /* Светло-красный */
-}
-
-.row-medium {
-    background-color: #fff3cd; /* Светло-желтый */
-}
-
-.row-low {
-    background-color: #d4edda; /* Светло-зеленый */
-}
+.row-high { background-color: #f8d7da; }
+.row-medium { background-color: #fff3cd; }
+.row-low { background-color: #d4edda; }
 
 /* Вспомогательные классы */
-.text-right {
-    text-align: right;
-}
-
-.mt-20 {
-    margin-top: 20px;
-}
+.text-right { text-align: right; }
+.mt-20 { margin-top: 20px; }
 
 .alert {
     padding: 15px;
@@ -126,22 +115,127 @@ th {
     border: 1px solid transparent;
     border-radius: 4px;
 }
-
 .alert-danger {
     color: #721c24;
     background-color: #f8d7da;
     border-color: #f5c6cb;
 }
 
+/* Навигация */
 .nav {
     margin-bottom: 20px;
     padding-bottom: 20px;
     border-bottom: 1px solid #eee;
 }
-
 .nav a {
     margin-right: 15px;
     text-decoration: none;
     color: #007bff;
     font-weight: bold;
+}
+
+/* Фильтры */
+.filter-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: flex-end;
+}
+.filter-item {
+    flex: 1;
+    min-width: 150px;
+}
+.filter-item label {
+    font-size: 12px;
+    margin-bottom: 2px;
+}
+.filter-item input, .filter-item select {
+    margin-bottom: 0;
+}
+.filter-actions {
+    display: flex;
+    gap: 5px;
+}
+
+/* Mobile Adaptation (Stack layout) */
+@media (max-width: 768px) {
+    body {
+        padding: 10px;
+    }
+    .container {
+        padding: 15px;
+    }
+
+    /* Stack navigation */
+    .nav {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        text-align: center;
+    }
+    .nav span[style*="float: right"] {
+        float: none !important;
+        display: block;
+        margin-top: 10px;
+        border-top: 1px solid #eee;
+        padding-top: 10px;
+    }
+    .nav a {
+        display: block;
+        margin-right: 0;
+        padding: 5px 0;
+        background: #f8f9fa;
+        border-radius: 4px;
+    }
+
+    /* Stack filters */
+    .filter-form {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .filter-item {
+        width: 100%;
+    }
+    .filter-actions {
+        width: 100%;
+    }
+    .filter-actions button, .filter-actions a {
+        flex: 1;
+        text-align: center;
+    }
+
+    /* Responsive Tables */
+    .table-responsive {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Optional: Stack table rows for very small screens if desired */
+    /*
+    table, thead, tbody, th, td, tr {
+        display: block;
+    }
+    thead tr {
+        position: absolute;
+        top: -9999px;
+        left: -9999px;
+    }
+    tr { border: 1px solid #ccc; margin-bottom: 10px; }
+    td {
+        border: none;
+        border-bottom: 1px solid #eee;
+        position: relative;
+        padding-left: 50%;
+    }
+    td:before {
+        position: absolute;
+        top: 12px;
+        left: 6px;
+        width: 45%;
+        padding-right: 10px;
+        white-space: nowrap;
+        font-weight: bold;
+        content: attr(data-label);
+    }
+    */
 }

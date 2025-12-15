@@ -12,6 +12,12 @@ $task_id = $_GET['id'];
 $user_role = current_user_role();
 $user_id = current_user_id();
 
+// Update task_views to mark as viewed (Step 4 of plan, but doing it here as I'm editing the file)
+$now = date('Y-m-d H:i:s');
+$stmtView = $pdo->prepare("INSERT INTO task_views (user_id, task_id, last_viewed_at) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE last_viewed_at = ?");
+$stmtView->execute([$user_id, $task_id, $now, $now]);
+
+
 // Обработка изменения статуса
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     $action = $_POST['action'];
@@ -36,20 +42,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     } elseif ($user_role === 'admin') {
         if ($action === 'done') {
             $new_status = 'done';
-        } elseif ($action === 'archive') {
+        } elseif ($action === 'delete') {
+            // Кнопка "Удалить" теперь переносит в архив (Soft Delete)
             $new_status = 'archive';
         }
     }
 
     if ($new_status) {
+        $now = date('Y-m-d H:i:s');
         if ($started_at_update) {
-            // Использование PHP date для совместимости со всеми БД
-            $now = date('Y-m-d H:i:s');
-            $stmt = $pdo->prepare("UPDATE tasks SET status = ?, started_at = ? WHERE id = ?");
-            $stmt->execute([$new_status, $now, $task_id]);
+            $stmt = $pdo->prepare("UPDATE tasks SET status = ?, started_at = ?, updated_at = ? WHERE id = ?");
+            $stmt->execute([$new_status, $now, $now, $task_id]);
         } else {
-            $stmt = $pdo->prepare("UPDATE tasks SET status = ? WHERE id = ?");
-            $stmt->execute([$new_status, $task_id]);
+            $stmt = $pdo->prepare("UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?");
+            $stmt->execute([$new_status, $now, $task_id]);
         }
         // Обновление страницы для отображения изменений
         header("Location: task_view.php?id=$task_id");
@@ -61,31 +67,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['comment_text'])) {
     $text = trim($_POST['comment_text']);
 
-    // Загрузка файла для комментария
-    $file_path = null;
-    $uploadDir = __DIR__ . '/uploads/';
-    if (!is_dir($uploadDir)) {
-        mkdir($uploadDir, 0755, true);
+    // Multiple file upload
+    $uploadedFiles = [];
+    if (isset($_FILES['comment_files'])) {
+        $uploadedFiles = upload_files($_FILES['comment_files']);
     }
 
-    if (isset($_FILES['comment_file']) && $_FILES['comment_file']['error'] === UPLOAD_ERR_OK) {
-        $fileInfo = pathinfo($_FILES['comment_file']['name']);
-        $ext = strtolower($fileInfo['extension']);
-        $allowed = ['jpg', 'jpeg', 'png', 'gif', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt', 'zip', 'rar'];
+    if (!empty($text) || !empty($uploadedFiles)) {
+        $now = date('Y-m-d H:i:s');
+        $stmt = $pdo->prepare("INSERT INTO comments (task_id, user_id, text, created_at) VALUES (?, ?, ?, ?)");
+        $stmt->execute([$task_id, $user_id, $text, $now]);
+        $comment_id = $pdo->lastInsertId();
 
-        if (in_array($ext, $allowed)) {
-            $filename = uniqid('comment_') . '.' . $ext;
-            $target = $uploadDir . $filename;
-            if (move_uploaded_file($_FILES['comment_file']['tmp_name'], $target)) {
-                $file_path = 'uploads/' . $filename;
+        if (!empty($uploadedFiles)) {
+            $stmtAttach = $pdo->prepare("INSERT INTO attachments (entity_type, entity_id, file_path, created_at) VALUES (?, ?, ?, ?)");
+            foreach ($uploadedFiles as $path) {
+                $stmtAttach->execute(['comment', $comment_id, $path, $now]);
             }
         }
-    }
 
-    if (!empty($text) || $file_path) {
-        $now = date('Y-m-d H:i:s');
-        $stmt = $pdo->prepare("INSERT INTO comments (task_id, user_id, text, file_path, created_at) VALUES (?, ?, ?, ?, ?)");
-        $stmt->execute([$task_id, $user_id, $text, $file_path, $now]);
+        // Update task updated_at
+        $stmtUpdateTask = $pdo->prepare("UPDATE tasks SET updated_at = ? WHERE id = ?");
+        $stmtUpdateTask->execute([$now, $task_id]);
+
         header("Location: task_view.php?id=$task_id");
         exit;
     }
@@ -109,12 +113,17 @@ if (!$task) {
 }
 
 // Проверка доступа: Сотрудник видит только свои задачи
-// Требование: "Сотрудник — только свои".
 if ($user_role === 'employee' && $task['assignee_id'] != $user_id) {
     die("Доступ запрещен. Вы не являетесь исполнителем этой задачи.");
 }
 
-// Получение комментариев
+// Получение вложений задачи
+$stmtAttach = $pdo->prepare("SELECT * FROM attachments WHERE entity_type = 'task' AND entity_id = ?");
+$stmtAttach->execute([$task_id]);
+$task_files = $stmtAttach->fetchAll();
+
+
+// Получение комментариев с вложениями
 $stmt = $pdo->prepare("
     SELECT c.*, u.first_name, u.last_name
     FROM comments c
@@ -125,6 +134,20 @@ $stmt = $pdo->prepare("
 $stmt->execute([$task_id]);
 $comments = $stmt->fetchAll();
 
+// Get comment attachments efficiently
+$comment_ids = array_column($comments, 'id');
+$comment_files = [];
+if (!empty($comment_ids)) {
+    $in  = str_repeat('?,', count($comment_ids) - 1) . '?';
+    $stmtCA = $pdo->prepare("SELECT * FROM attachments WHERE entity_type = 'comment' AND entity_id IN ($in)");
+    $stmtCA->execute($comment_ids);
+    $all_c_files = $stmtCA->fetchAll();
+
+    foreach ($all_c_files as $f) {
+        $comment_files[$f['entity_id']][] = $f;
+    }
+}
+
 ?>
 <!DOCTYPE html>
 <html lang="ru">
@@ -132,11 +155,14 @@ $comments = $stmt->fetchAll();
     <meta charset="UTF-8">
     <title>Задача #<?= $task['id'] ?></title>
     <link rel="stylesheet" href="style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body>
     <div class="container">
         <div class="nav">
-            <a href="projects_list.php">Проекты</a>
+            <?php if ($user_role === 'admin'): ?>
+                <a href="projects_list.php">Проекты</a>
+            <?php endif; ?>
             <a href="tasks_list.php">Задачи</a>
             <?php if ($user_role === 'admin'): ?>
                 <a href="users.php">Сотрудники</a>
@@ -156,9 +182,9 @@ $comments = $stmt->fetchAll();
         <div style="border: 1px solid #ddd; padding: 20px; border-radius: 4px; background: #fff;">
             <h1><?= htmlspecialchars($task['title']) ?> <span style="font-size: 16px; color: #777;">(#<?= $task['id'] ?>)</span></h1>
 
-            <table style="width: auto; border: none; margin-bottom: 20px;">
+            <table style="width: 100%; border: none; margin-bottom: 20px; max-width: 600px;">
                 <tr style="border: none;">
-                    <td style="border: none; padding-left: 0; font-weight: bold;">Проект:</td>
+                    <td style="border: none; padding-left: 0; font-weight: bold; width: 120px;">Проект:</td>
                     <td style="border: none;"><?= htmlspecialchars($task['project_name']) ?></td>
                 </tr>
                 <tr style="border: none;">
@@ -197,11 +223,13 @@ $comments = $stmt->fetchAll();
                         <?= $task['deadline'] ? date('d.m.Y H:i', strtotime($task['deadline'])) : '-' ?>
                     </td>
                 </tr>
-                <?php if ($task['file_path']): ?>
+                <?php if (!empty($task_files)): ?>
                 <tr style="border: none;">
-                    <td style="border: none; padding-left: 0; font-weight: bold;">Файл:</td>
+                    <td style="border: none; padding-left: 0; font-weight: bold; vertical-align: top;">Файлы:</td>
                     <td style="border: none;">
-                        <a href="<?= htmlspecialchars($task['file_path']) ?>" target="_blank" style="color: #007bff; font-weight: bold;">Скачать файл</a>
+                        <?php foreach($task_files as $tf): ?>
+                            <div><a href="<?= htmlspecialchars($tf['file_path']) ?>" target="_blank" style="color: #007bff; font-weight: bold;">Скачать файл</a></div>
+                        <?php endforeach; ?>
                     </td>
                 </tr>
                 <?php endif; ?>
@@ -233,10 +261,12 @@ $comments = $stmt->fetchAll();
                             <button type="submit" class="btn btn-success">Завершить</button>
                         </form>
                     <?php endif; ?>
+
                     <?php if ($task['status'] !== 'archive'): ?>
                         <form method="POST" style="display: inline;">
-                            <input type="hidden" name="action" value="archive">
-                            <button type="submit" class="btn btn-danger">В архив</button>
+                            <input type="hidden" name="action" value="delete">
+                            <!-- Кнопка называется "Удалить", но по факту отправляет в архив -->
+                            <button type="submit" class="btn btn-danger" onclick="return confirm('Задача будет перемещена в архив. Продолжить?');">Удалить</button>
                         </form>
                     <?php endif; ?>
                 <?php endif; ?>
@@ -253,9 +283,11 @@ $comments = $stmt->fetchAll();
                                 | <?= date('d.m.Y H:i', strtotime($c['created_at'])) ?>
                             </div>
                             <div style="margin-top: 5px;"><?= nl2br(htmlspecialchars($c['text'])) ?></div>
-                            <?php if (!empty($c['file_path'])): ?>
+                            <?php if (isset($comment_files[$c['id']])): ?>
                                 <div style="margin-top: 5px;">
-                                    <a href="<?= htmlspecialchars($c['file_path']) ?>" target="_blank" style="color: #007bff; font-size: 12px;">Скачать прикрепленный файл</a>
+                                    <?php foreach ($comment_files[$c['id']] as $cf): ?>
+                                        <div><a href="<?= htmlspecialchars($cf['file_path']) ?>" target="_blank" style="color: #007bff; font-size: 12px;">Скачать: <?= basename($cf['file_path']) ?></a></div>
+                                    <?php endforeach; ?>
                                 </div>
                             <?php endif; ?>
                         </div>
@@ -269,8 +301,8 @@ $comments = $stmt->fetchAll();
                 <label>Добавить комментарий</label>
                 <textarea name="comment_text" rows="3"></textarea>
 
-                <label style="margin-top: 10px;">Прикрепить файл</label>
-                <input type="file" name="comment_file">
+                <label style="margin-top: 10px;">Прикрепить файлы</label>
+                <input type="file" name="comment_files[]" multiple>
                 <small style="color: #666;">Разрешены: jpg, png, pdf, doc, xls, zip</small>
 
                 <div style="margin-top: 10px;">

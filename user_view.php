@@ -31,11 +31,14 @@ if (!$user) {
     <meta charset="UTF-8">
     <title>Профиль сотрудника: <?= htmlspecialchars($user['first_name'] . ' ' . $user['last_name']) ?></title>
     <link rel="stylesheet" href="style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body>
     <div class="container">
         <div class="nav">
-            <a href="projects_list.php">Проекты</a>
+            <?php if ($currentUserRole === 'admin'): ?>
+                <a href="projects_list.php">Проекты</a>
+            <?php endif; ?>
             <a href="tasks_list.php">Задачи</a>
             <?php if ($currentUserRole === 'admin'): ?>
                 <a href="users.php">Сотрудники</a>
@@ -84,6 +87,10 @@ if (!$user) {
                     <td style="border: none;"><?= htmlspecialchars($user['phone'] ?? '-') ?></td>
                 </tr>
             </table>
+
+            <div style="margin-top: 20px;">
+                <a href="user_edit.php?id=<?= $user['id'] ?>" class="btn btn-primary">Редактировать профиль</a>
+            </div>
         </div>
     </div>
 </body>

@@ -39,22 +39,20 @@ try {
     // status (Статус) -> сбрасываем в 'waiting'
     // deadline (Срок) -> ставим NULL
     // started_at (Дата начала) -> ставим NULL
-    // file_path (Файл) -> ставим NULL (файлы не копируются)
     // created_at (Дата создания) -> Текущая дата
+    // updated_at (Дата обновления) -> Текущая дата
     // title, description, priority -> Копируем как есть
-    // Комментарии НЕ копируются
+    // Вложения и Комментарии НЕ копируются (по требованиям: "reset task status... and file attachments")
 
-    // Администратор, выполняющий клонирование, становится создателем новых задач
     $creator_id = current_user_id();
 
     $sql_insert = "
         INSERT INTO tasks
-        (project_id, creator_id, assignee_id, title, description, status, priority, created_at, deadline, started_at, file_path)
-        VALUES (?, ?, NULL, ?, ?, 'waiting', ?, ?, NULL, NULL, NULL)
+        (project_id, creator_id, assignee_id, title, description, status, priority, created_at, updated_at, deadline, started_at)
+        VALUES (?, ?, NULL, ?, ?, 'waiting', ?, ?, ?, NULL, NULL)
     ";
     $stmt_insert = $pdo->prepare($sql_insert);
 
-    // Совместимость дат для SQLite/MySQL
     $now = date('Y-m-d H:i:s');
 
     foreach ($tasks as $t) {
@@ -64,6 +62,7 @@ try {
             $t['title'],
             $t['description'],
             $t['priority'],
+            $now,
             $now
         ]);
     }
